@@ -43,7 +43,7 @@ public class FileReaderVerticle extends VerticleBase
                                 .onComplete(ar -> {
                                     if (ar.succeeded()) {
                                         JsonObject json = (JsonObject) ar.result().body();
-                                        LOG.info("JSON: " + json.encodePrettily());
+                                        //LOG.info("JSON: " + json.encodePrettily());
                                         vertx.eventBus().send(json.getString("matchId"), json);      
                                     }
                                 });                                            

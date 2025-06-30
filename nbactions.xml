@@ -25,7 +25,7 @@
             <properties>
                 <exec.vmArgs></exec.vmArgs>
                 <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
-                <exec.appArgs>--filePath=src/main/java/rokoren/matchflow/resources/fo_random.txt</exec.appArgs>
+                <exec.appArgs>--filePath=src/main/resources/fo_random.txt</exec.appArgs>
                 <exec.mainClass>rokoren.matchflow.MainVerticle</exec.mainClass>
                 <exec.executable>java</exec.executable>
             </properties>
@@ -42,7 +42,7 @@
             <properties>
                 <exec.vmArgs>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
                 <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
-                <exec.appArgs>--filePath=src/main/java/rokoren/matchflow/resources/fo_random.txt</exec.appArgs>
+                <exec.appArgs>--filePath=src/main/resources/fo_random.txt</exec.appArgs>
                 <exec.mainClass>rokoren.matchflow.MainVerticle</exec.mainClass>
                 <exec.executable>java</exec.executable>
                 <jpda.listen>true</jpda.listen>
@@ -62,7 +62,7 @@
                 <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
                 <exec.mainClass>rokoren.matchflow.MainVerticle</exec.mainClass>
                 <exec.executable>java</exec.executable>
-                <exec.appArgs>--filePath=src/main/java/rokoren/matchflow/resources/fo_random.txt</exec.appArgs>
+                <exec.appArgs>--filePath=src/main/resources/fo_random.txt</exec.appArgs>
             </properties>
         </action>
     </actions>

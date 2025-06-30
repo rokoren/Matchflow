@@ -29,7 +29,7 @@ public class ManagerVerticle extends VerticleBase
     public Future<?> start()    
     {        
         return vertx.eventBus().consumer(ADDRESS, message -> {
-            LOG.info("Line: " + message.body());
+            //LOG.info("Line: " + message.body());
             String line = message.body().toString();            
             Row row = Row.fromLine(line);
             Future<String> future = verticles.get(row.matchId());

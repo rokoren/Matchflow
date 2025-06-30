@@ -27,7 +27,8 @@ public class MatchVerticle extends VerticleBase
     public Future<?> start() 
     {
         return vertx.eventBus().consumer(matchID, message -> {
-            LOG.info("MatchVerticle: " + message.body());                                  
+            //LOG.info("MatchVerticle: " + message.body()); 
+            vertx.eventBus().send(DatabaseVerticle.ADDRESS, message.body());
         }).completion(); 
     }    
 }

@@ -6,12 +6,18 @@ package rokoren.matchflow;
 
 import io.vertx.core.Future;
 import io.vertx.core.VerticleBase;
+import io.vertx.core.json.JsonObject;
 import io.vertx.jdbcclient.JDBCConnectOptions;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.Pool;
 import io.vertx.sqlclient.PoolOptions;
-import io.vertx.sqlclient.Row;
+import io.vertx.sqlclient.Tuple;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.logging.Logger;
+import rokoren.matchflow.model.Row;
 
 /**
  *
@@ -35,25 +41,53 @@ public class DatabaseVerticle extends VerticleBase
         PoolOptions poolOptions = new PoolOptions()
           .setMaxSize(16);
         pool = JDBCPool.pool(vertx, connectOptions, poolOptions);   
+
+        try
+        {
+            String schemaSql = Files.readString(Paths.get("src/main/resources/schema.sql"));
+            
+            pool
+              .query(schemaSql)
+              .execute()
+              .onFailure(e -> {
+                LOG.warning(e.getMessage());
+              })
+              .onSuccess(rows -> {
+                    LOG.info("Creating Database Table Succeeded");
+                });                   
+        }
+        catch(IOException e)
+        {
+            LOG.warning(e.getMessage());
+        }
         
         return vertx.eventBus().consumer(ADDRESS, message -> {
-            LOG.info("Line: " + message.body());
-            /*
-            pool.getConnection()
-                    .compose(conn -> conn
-                    .query("SELECT * FROM user")
-                    .execute()
-                    // very important! don't forget to return the connection
-                    .eventually(conn::close))
-                    .onSuccess(rows -> {
-                        for (Row row : rows) {
-                            System.out.println(row.getString("FIRST_NAME"));
-                        }
-                    })
-                    .onFailure(e -> {
-                        // handle the failure
-                    });
-            */
+            JsonObject json = (JsonObject)message.body();
+            Row row = Row.fromJson(json);
+            insert(row);
         }).completion();         
-    }     
+    } 
+
+    private void insert(Row row) 
+    {
+        Tuple tuple = Tuple.of(
+                        row.matchId(),
+                        row.marketId(),
+                        row.outcomeId(),
+                        row.specifiers(),
+                        Instant.now());
+        
+        pool.getConnection()
+            .compose(conn -> conn
+            .preparedQuery("INSERT INTO match_data (match_id, market_id, outcome_id, specifiers, date_insert) VALUES (?, ?, ?, ?, ?)")
+            .execute(tuple)
+            // very important! don't forget to return the connection
+            .eventually(conn::close))
+            .onSuccess(rows -> {
+                LOG.info("Data insert in DB success");
+            })
+            .onFailure(e -> {
+                LOG.warning(e.getMessage());
+            });      
+    }   
 }

@@ -2,6 +2,7 @@ package rokoren.matchflow;
 
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
+import io.vertx.core.ThreadingModel;
 import io.vertx.core.VerticleBase;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
@@ -19,7 +20,26 @@ public class MainVerticle extends VerticleBase
     public Future<?> start() 
     {
         String filePath = config().getString(PROP_FILE_PATH);
-        return Future.all(vertx.deployVerticle(new ManagerVerticle()), vertx.deployVerticle(new FileReaderVerticle(filePath)));
+        DeploymentOptions options = new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER);
+        vertx.deployVerticle(new DatabaseVerticle(), options)
+                .onComplete(res1 -> {
+                    if (res1.succeeded()) {
+                        LOG.info("DatabaseVerticle deployed: " + res1.result());
+                        
+                        vertx.deployVerticle(new ManagerVerticle(), options)
+                                .onComplete(res2 -> {
+                                    if (res2.succeeded()) {
+                                        LOG.info("ManagerVerticle deployed: " + res2.result());
+                                        vertx.deployVerticle(new FileReaderVerticle(filePath));
+                                    } else {
+                                        LOG.warning("Deployment failed!");
+                                    }
+                                });                          
+                    } else {
+                        LOG.warning("Deployment failed!");
+                    }
+                });  
+            return Future.succeededFuture();
     }
     
     public static void main(String[] args) 
