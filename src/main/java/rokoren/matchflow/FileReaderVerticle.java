@@ -11,6 +11,7 @@ import io.vertx.core.file.OpenOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.parsetools.RecordParser;
 import java.util.logging.Logger;
+import rokoren.matchflow.model.MatchProvider;
 
 /**
  *
@@ -33,7 +34,7 @@ public class FileReaderVerticle extends VerticleBase
         OpenOptions options = new OpenOptions();
         return vertx.fileSystem().open(filePath, options).onComplete(res -> {
             if (res.succeeded()) {
-                AsyncFile file = res.result();
+                AsyncFile file = res.result();                                              
                 RecordParser parser = RecordParser.newDelimited("\n", file);
                 parser.handler(lineBuffer -> {
                     String line = lineBuffer.toString().trim();
@@ -44,11 +45,11 @@ public class FileReaderVerticle extends VerticleBase
                                     if (ar.succeeded()) {
                                         JsonObject json = (JsonObject) ar.result().body();
                                         //LOG.info("JSON: " + json.encodePrettily());
-                                        vertx.eventBus().send(json.getString("matchId"), json);      
+                                        vertx.eventBus().send(json.getString(MatchProvider.KEY_MATCH_ID), json);      
                                     }
                                 });                                            
                     }
-                });                
+                }).endHandler(h -> file.close());              
             } else {
                 LOG.warning(res.cause().getMessage());
             }

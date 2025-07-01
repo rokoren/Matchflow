@@ -5,38 +5,62 @@
 package rokoren.matchflow.model;
 
 import io.vertx.core.json.JsonObject;
+import rokoren.matchflow.exception.NotNumberException;
+import rokoren.matchflow.exception.ParsingException;
+import rokoren.matchflow.exception.TooFewColumnsException;
 
 /**
  *
  * @author Rok Koren
  */
-public record Row(
-    String matchId,
-    int marketId,
-    String outcomeId,
-    String specifiers
-) 
-{
-    public static Row fromLine(String line) {
-        try {
+public class Row extends RowData implements MatchProvider
+{    
+    private final String matchID;
+    
+    public Row(String matchID, int marketID, String outcomeID)
+    {
+        super(marketID, outcomeID);
+        this.matchID = matchID;
+    }
+    
+    @Override
+    public String getMatchID()
+    {
+        return matchID;
+    }    
+    
+    public static Row fromLine(String line) throws ParsingException
+    {
+        try 
+        {
             String[] parts = line.split("\\|", -1); // -1 ohrani prazne zadnje stolpce
 
-            if (parts.length < 3) {
-                System.err.println("⚠️ Premalo stolpcev: " + line);
-                return null;
+            if (parts.length < 3) 
+            {
+                throw new TooFewColumnsException(line);
             }
 
             String matchId = unquote(parts[0].trim());         // 'sr:match:13762991'
             int marketId = Integer.parseInt(parts[1].trim());   // 60
             String outcomeId = unquote(parts[2].trim());        // '2'
-            String specifiers = parts.length > 3 ? unquote(parts[3].trim()) : ""; // prazno ali string
+            String specifiers = parts.length > 3 ? unquote(parts[3].trim()) : null; // null ali string
 
-            return new Row(matchId, marketId, outcomeId, specifiers);
+            if(specifiers == null || specifiers.isBlank())
+            {
+                return new Row(matchId, marketId, outcomeId);
+            }
+            
+            return new RowExt(matchId, marketId, outcomeId, specifiers);
 
-        } catch (Exception e) {
-            System.err.println("⚠️ Napaka pri parsiranju: " + line + " => " + e.getMessage());
-            return null;
+        } 
+        catch (NumberFormatException e) 
+        {
+            throw new NotNumberException(line);
         }
+        catch (Exception e) 
+        {
+            throw new ParsingException(line, e.getMessage());
+        }        
     }
 
     private static String unquote(String input) {
@@ -46,20 +70,9 @@ public record Row(
         return input;
     }
 
-    public JsonObject toJson() {
-        return new JsonObject()
-                .put("matchId", matchId)
-                .put("marketId", marketId)
-                .put("outcomeId", outcomeId)
-                .put("specifiers", specifiers);
-    }
-
-    public static Row fromJson(JsonObject json) {
-        return new Row(
-            json.getString("matchId"),
-            json.getInteger("marketId"),
-            json.getString("outcomeId"),
-            json.getString("specifiers")
-        );
+    @Override
+    public JsonObject toJson() 
+    {
+        return super.toJson().put(KEY_MATCH_ID, matchID);
     }
 }

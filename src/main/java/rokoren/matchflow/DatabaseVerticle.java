@@ -7,17 +7,18 @@ package rokoren.matchflow;
 import io.vertx.core.Future;
 import io.vertx.core.VerticleBase;
 import io.vertx.core.json.JsonObject;
-import io.vertx.jdbcclient.JDBCConnectOptions;
-import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.Pool;
-import io.vertx.sqlclient.PoolOptions;
+import io.vertx.sqlclient.Row;
+import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.Tuple;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
-import rokoren.matchflow.model.Row;
+import rokoren.matchflow.model.MatchProvider;
+import rokoren.matchflow.model.RowData;
+import rokoren.matchflow.model.Rows;
+import rokoren.matchflow.model.SpecifiersProvider;
 
 /**
  *
@@ -25,69 +26,95 @@ import rokoren.matchflow.model.Row;
  */
 public class DatabaseVerticle extends VerticleBase
 {
-    public static final String ADDRESS = "database.manager";    
+    public static final String ADDRESS_INSERT = "database.insert";
+    
+    public static final int FAILURE_CODE = 100;
     
     private static final Logger LOG = Logger.getLogger(DatabaseVerticle.class.getName());    
     
-    private Pool pool;
+    private final Pool pool;
+    
+    private final long maxFlushDelayMs = 5000; 
+    private long lastFlushTime = System.currentTimeMillis();     
+
+    public DatabaseVerticle(Pool pool) {
+        this.pool = pool;
+    }        
     
     @Override
     public Future<?> start() 
-    {
-        JDBCConnectOptions connectOptions = new JDBCConnectOptions()
-          .setJdbcUrl("jdbc:h2:~/test")
-          .setUser("sa")
-          .setPassword("");
-        PoolOptions poolOptions = new PoolOptions()
-          .setMaxSize(16);
-        pool = JDBCPool.pool(vertx, connectOptions, poolOptions);   
+    {  
+        vertx.setPeriodic(1000, timerId -> {
+            long now = System.currentTimeMillis();
 
-        try
-        {
-            String schemaSql = Files.readString(Paths.get("src/main/resources/schema.sql"));
-            
-            pool
-              .query(schemaSql)
-              .execute()
-              .onFailure(e -> {
-                LOG.warning(e.getMessage());
-              })
-              .onSuccess(rows -> {
-                    LOG.info("Creating Database Table Succeeded");
-                });                   
-        }
-        catch(IOException e)
-        {
-            LOG.warning(e.getMessage());
-        }
+            // Print min, max times če je dosežen maxFlushDelay
+            if ((now - lastFlushTime) >= maxFlushDelayMs) 
+            {
+                lastFlushTime = now; 
+                printMinMaxInsertTimes();
+            }
+        });         
         
-        return vertx.eventBus().consumer(ADDRESS, message -> {
+        return vertx.eventBus().consumer(ADDRESS_INSERT, message -> {
             JsonObject json = (JsonObject)message.body();
-            Row row = Row.fromJson(json);
-            insert(row);
-        }).completion();         
-    } 
+            Rows rows = Rows.fromJson(json);
+            
+            Instant insertTime = Instant.now();
+            List<Tuple> batch = new ArrayList(rows.getRows().size());
+            for(RowData row : rows.getRows())
+            {
+                batch.add(getTuple(rows.getMatchID(), row, insertTime));
+            }
 
-    private void insert(Row row) 
+            pool.getConnection()
+                .compose(conn -> conn
+                .preparedQuery("INSERT INTO match_data (match_id, market_id, outcome_id, specifiers, date_insert) VALUES (?, ?, ?, ?, ?)")
+                .executeBatch(batch)
+                // very important! don't forget to return the connection
+                .eventually(conn::close))
+                .onSuccess(commit -> {
+                    //LOG.info("Batch insert succeeded for match ID: " + rows.getMatchID());
+                    lastFlushTime = System.currentTimeMillis(); 
+                    message.reply(new JsonObject().put(MatchProvider.KEY_MATCH_ID, rows.getMatchID()).put(Rows.KEY_ROWS, commit.rowCount()));
+                })
+                .onFailure(e -> {
+                    LOG.warning(e.getMessage());
+                    message.fail(FAILURE_CODE, e.getMessage());
+                });             
+        }).completion();         
+    }   
+    
+    private Tuple getTuple(String matchID, RowData data, Instant insertTime)
     {
-        Tuple tuple = Tuple.of(
-                        row.matchId(),
-                        row.marketId(),
-                        row.outcomeId(),
-                        row.specifiers(),
-                        Instant.now());
+        String specifiers = null;
+        int marketID = data.getMatketID();
+        String outcomeID = data.getOutcomeID();
+        if(data instanceof SpecifiersProvider provider)
+        {
+            specifiers = provider.getSpecifiers();
+        }
         
+        return Tuple.of(matchID, marketID, outcomeID, specifiers, insertTime);       
+    }
+    
+    private void printMinMaxInsertTimes() 
+    {
         pool.getConnection()
             .compose(conn -> conn
-            .preparedQuery("INSERT INTO match_data (match_id, market_id, outcome_id, specifiers, date_insert) VALUES (?, ?, ?, ?, ?)")
-            .execute(tuple)
-            // very important! don't forget to return the connection
-            .eventually(conn::close))
+            .query("SELECT MIN(date_insert) AS min_time, MAX(date_insert) AS max_time FROM match_data")
+            .execute()
             .onSuccess(rows -> {
-                LOG.info("Data insert in DB success");
+                RowSet<Row> result = rows;
+                if (result.iterator().hasNext()) {
+                    Row row = result.iterator().next();
+                    LOG.info("🟢 Min date_insert: " + row.getLocalDateTime("min_time"));
+                    LOG.info("🔵 Max date_insert: " + row.getLocalDateTime("max_time"));
+                } else {
+                    LOG.info("⚠️ No data found in match_data table.");
+                }
             })
-            .onFailure(e -> {
-                LOG.warning(e.getMessage());
-            });      
-    }   
+            .onFailure(err -> {
+                LOG.warning("❌ Failed to fetch min/max insert dates: " + err.getMessage());
+            }));        
+    } 
 }

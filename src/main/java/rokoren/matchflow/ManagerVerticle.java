@@ -6,11 +6,10 @@ package rokoren.matchflow;
 
 import io.vertx.core.Future;
 import io.vertx.core.VerticleBase;
-import io.vertx.core.shareddata.LocalMap;
-import io.vertx.core.shareddata.SharedData;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
+import rokoren.matchflow.exception.ParsingException;
 import rokoren.matchflow.model.Row;
 
 /**
@@ -30,17 +29,24 @@ public class ManagerVerticle extends VerticleBase
     {        
         return vertx.eventBus().consumer(ADDRESS, message -> {
             //LOG.info("Line: " + message.body());
-            String line = message.body().toString();            
-            Row row = Row.fromLine(line);
-            Future<String> future = verticles.get(row.matchId());
-            if(future == null)
+            String line = message.body().toString();  
+            try
             {
-                future = vertx.deployVerticle(new MatchVerticle(row.matchId()));
-                verticles.put(row.matchId(), future);                  
+                Row row = Row.fromLine(line);
+                Future<String> future = verticles.get(row.getMatchID());
+                if(future == null)
+                {
+                    future = vertx.deployVerticle(new MatchVerticle(row.getMatchID()));
+                    verticles.put(row.getMatchID(), future);                  
+                }
+                future.onComplete(ar -> {
+                    message.reply(row.toJson());
+                });                  
+            }  
+            catch(ParsingException e)
+            {
+                LOG.warning(e.getMessage());
             }
-            future.onComplete(ar -> {
-                message.reply(row.toJson());
-            });            
         }).completion();        
     }   
 }
