@@ -1,8 +1,6 @@
 # Matchflow
 Home Assignment
 
-## Description
-
 In the file (data set) you can find 4 columns of data (MATCH_ID, MARKET_ID, OUTCOME_ID, SPECIFIERS) separated with pipe. Your task is to put this data into DB as fast as possible, but in ordered manner (asc) for single MATCH_ID starting with first column and so on. Please add one more column - date_insert, which should signal the timestamp of insertion. If you order data within one MATCH_ID by 'date_insert', data should be ordered as specified. It's important to know that file mentioned below (data set) is just a snippet. In real environment this is represented as a steady data stream.
 
 Data set can be found here: src/main/resources/fo_random.txt
