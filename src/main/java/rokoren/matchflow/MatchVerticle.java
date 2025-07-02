@@ -19,7 +19,7 @@ import rokoren.matchflow.model.Rows;
  */
 public class MatchVerticle extends VerticleBase
 {    
-    private static final Logger LOG = Logger.getLogger(MainVerticle.class.getName());     
+    private static final Logger LOG = Logger.getLogger(MatchVerticle.class.getName());     
     
     private final Queue<RowData> queue = new ConcurrentLinkedQueue<>();
     private final int maxBatchSize = 100;

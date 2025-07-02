@@ -20,7 +20,7 @@ public class ManagerVerticle extends VerticleBase
 {
     public static final String ADDRESS = "match.manager";
     
-    private static final Logger LOG = Logger.getLogger(MainVerticle.class.getName());   
+    private static final Logger LOG = Logger.getLogger(ManagerVerticle.class.getName());   
     
     private final Map<String, Future<String>> verticles = new HashMap<>();
     
